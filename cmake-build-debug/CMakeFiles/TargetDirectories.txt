@@ -1,0 +1,3 @@
+/cygdrive/c/Users/clays/CLionProjects/OS/DiceWar/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/cygdrive/c/Users/clays/CLionProjects/OS/DiceWar/cmake-build-debug/CMakeFiles/DiceWar.dir
+/cygdrive/c/Users/clays/CLionProjects/OS/DiceWar/cmake-build-debug/CMakeFiles/edit_cache.dir

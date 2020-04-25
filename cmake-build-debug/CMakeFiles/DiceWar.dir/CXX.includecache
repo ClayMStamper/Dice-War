@@ -1,0 +1,20 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/cygdrive/c/Users/clays/CLionProjects/OS/DiceWar/main.cpp
+iostream
+-
+unistd.h
+-
+stdlib.h
+/cygdrive/c/Users/clays/CLionProjects/OS/DiceWar/stdlib.h
+pthread.h
+/cygdrive/c/Users/clays/CLionProjects/OS/DiceWar/pthread.h
+semaphore.h
+/cygdrive/c/Users/clays/CLionProjects/OS/DiceWar/semaphore.h
+
