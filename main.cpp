@@ -4,48 +4,58 @@
 #include "pthread.h"
 #include "semaphore.h"
 #include "string.h"
+#include <random>
 
-
-static int die_sums[] = {0, 0, 0, 0};
+static int dieSums[] = {0, 0, 0, 0};
+static char playerNames[] = {'A', 'B', 'C', 'D'};
 
 static pthread_mutex_t die_mutex;
-static pthread_cond_t winner_cond;
-static int seed = 0;
+static std::default_random_engine gen;
+static std::uniform_int_distribution randDist;
+static pthread_cond_t winner_cond, aTurn_cond, bTurn_cond, cTurn_cond, dTurn_cond, dealerTurn_cond;
 
 int GetRand(){
     int max = 6;
-    srand(time(NULL) * seed);
-    return rand() % max;
+    return randDist(gen);
 }
 
-char GetName(int id){
+pthread_cond_t GetMyCondition(int id){
     switch (id) {
         case 0:
-            return 'A';
+            return aTurn_cond;
             break;
         case 1:
-            return 'B';
+            return bTurn_cond;
             break;
         case 2:
-            return 'C';
+            return cTurn_cond;
             break;
         case 3:
-            return 'D';
+            return dTurn_cond;
+            break;
+        case 4:
+            return dealerTurn_cond;
             break;
     }
 }
 
 void* PlayerGo(void* id){
 
-    int myId = (long) id;
+    int i = (long) id;
 
+    //wait for signal from dealer
+    pthread_cond_t myCond = GetMyCondition(i);
+    pthread_cond_signal(&myCond);
 
+    //Roll dice
     pthread_mutex_lock(&die_mutex);
-//    printf("Player %s had sum: %d", GetName(myId), die_sums[myId]);
-    sleep(1.0f);
-    die_sums[myId] = GetRand();
-    std::cout << "\nPlayer " << GetName(myId) << " has a last sum of " << die_sums[myId];
+    int rand1 = GetRand(), rand2 = GetRand();
+    dieSums[i] = rand1 + rand2;
+    std::cout << "\nPLAYER " << playerNames[i] << " gets " << rand1 << " and " << rand2 << " for a sum of " << dieSums[i];
     pthread_mutex_unlock(&die_mutex);
+
+    //signal dealer that we're gucci
+    pthread_cond_signal(&dealerTurn_cond);
 
 }
 
@@ -57,7 +67,10 @@ int main(int argc, char* argv[])
 {
 
     if (argc != 2) {fprintf(stderr, "WARNING: %d arguments were passed! \n", argv[0]); exit(-1);}
-    seed = atoi(argv[1]);
+    int seed = atoi(argv[1]);
+
+    gen.seed(seed);
+    randDist = std::uniform_int_distribution(1, 6);
 
     pthread_t threads[5];
     pthread_attr_t  attr;
