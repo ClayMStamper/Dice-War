@@ -100,6 +100,9 @@ void* DealerGo(void* id){
 
     std::cout << "\nI'm the dealer! Look at me\n";
 
+    //used to keep track of who won
+    int winner = 0;
+
     do {
         //loop through players one by one and signal to roll dice
         for (int i = 0; i < 4; ++i) {
@@ -107,13 +110,19 @@ void* DealerGo(void* id){
             pthread_cond_t playerCond = GetCondition(i);
             pthread_cond_signal(&playerCond);
             //wait for response
-            pthread_cond_wait()
+            pthread_cond_wait(&dealerTurn_cond, &dealerTurn_mutex);
             //check for finished
-
+            if (finished) {
+                winner = i;
+                break;
+            }
         }
     } while (!finished);
 
-    
+    int winnerPartner = (winner + 2) % 4;
+
+    std::cout << "\nDEALER: The winning team is " << playerNames[winner] << " and " << playerNames[winnerPartner] << "\n";
+
 }
 
 int main(int argc, char* argv[])
@@ -149,6 +158,8 @@ int main(int argc, char* argv[])
     for (int i = 0; i < 4; ++i) {
         pthread_create(&threads[i], &attr, PlayerGo, (void*) i);
     }
+
+    while (!finished){} //busy wait
 
     for (auto & thread : threads) {
         pthread_join(thread, nullptr);
