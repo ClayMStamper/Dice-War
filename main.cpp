@@ -12,14 +12,17 @@ static char playerNames[] = {'A', 'B', 'C', 'D'};
 static pthread_mutex_t die_mutex;
 static std::default_random_engine gen;
 static std::uniform_int_distribution randDist;
-static pthread_cond_t winner_cond, aTurn_cond, bTurn_cond, cTurn_cond, dTurn_cond, dealerTurn_cond;
+static pthread_cond_t aTurn_cond, bTurn_cond, cTurn_cond, dTurn_cond, dealerTurn_cond;
+static pthread_mutex_t aTurn_mutex, bTurn_mutex, cTurn_mutex, dTurn_mutex, dealerTurn_mutex;
+static bool finished = false;
+
 
 int GetRand(){
     int max = 6;
     return randDist(gen);
 }
 
-pthread_cond_t GetMyCondition(int id){
+pthread_cond_t GetCondition(int id){
     switch (id) {
         case 0:
             return aTurn_cond;
@@ -38,35 +41,85 @@ pthread_cond_t GetMyCondition(int id){
             break;
     }
 }
+pthread_mutex_t GetMutex(int id){
+    switch (id) {
+        case 0:
+            return aTurn_mutex;
+            break;
+        case 1:
+            return bTurn_mutex;
+            break;
+        case 2:
+            return cTurn_mutex;
+            break;
+        case 3:
+            return dTurn_mutex;
+            break;
+        case 4:
+            return dealerTurn_mutex;
+            break;
+    }
+}
 
 void* PlayerGo(void* id){
 
-    int i = (long) id;
+    //this threads id that maps one to one with it's name and conditions
+    int myIndex = (long) id;
 
-    //wait for signal from dealer
-    pthread_cond_t myCond = GetMyCondition(i);
-    pthread_cond_signal(&myCond);
+    //Get my mutex and wait condition
+    pthread_cond_t myCond = GetCondition(myIndex);
+    pthread_mutex_t myMutex = GetMutex(myIndex);
 
-    //Roll dice
-    pthread_mutex_lock(&die_mutex);
-    int rand1 = GetRand(), rand2 = GetRand();
-    dieSums[i] = rand1 + rand2;
-    std::cout << "\nPLAYER " << playerNames[i] << " gets " << rand1 << " and " << rand2 << " for a sum of " << dieSums[i];
-    pthread_mutex_unlock(&die_mutex);
+    do {
 
-    //signal dealer that we're gucci
-    pthread_cond_signal(&dealerTurn_cond);
+        //wait for dealer
+        pthread_cond_wait(&myCond, &myMutex);
+
+        //Roll dice
+        pthread_mutex_lock(&die_mutex);
+        int rand1 = GetRand(), rand2 = GetRand();
+        dieSums[myIndex] = rand1 + rand2;
+        std::cout << "\nPLAYER " << playerNames[myIndex] << " gets " << rand1 << " and " << rand2 << " for a sum of " << dieSums[myIndex];
+        pthread_mutex_unlock(&die_mutex);
+
+        //Check for finished
+        int partnerIndex = (myIndex + 2) % 4;
+        if (dieSums[myIndex] == dieSums[partnerIndex]){
+            finished = true;
+        }
+
+        //signal dealer that we're gucci
+        pthread_cond_signal(&dealerTurn_cond);
+
+    } while (!finished);
+
 
 }
 
-void* DealerGo(){
+void* DealerGo(void* id){
 
+    std::cout << "\nI'm the dealer! Look at me\n";
+
+    do {
+        //loop through players one by one and signal to roll dice
+        for (int i = 0; i < 4; ++i) {
+            //signal player
+            pthread_cond_t playerCond = GetCondition(i);
+            pthread_cond_signal(&playerCond);
+            //wait for response
+            pthread_cond_wait()
+            //check for finished
+
+        }
+    } while (!finished);
+
+    
 }
 
 int main(int argc, char* argv[])
 {
 
-    if (argc != 2) {fprintf(stderr, "WARNING: %d arguments were passed! \n", argv[0]); exit(-1);}
+    if (argc != 2) {fprintf(stderr, "WARNING: %s arguments were passed! \n", argv[0]); exit(-1);}
     int seed = atoi(argv[1]);
 
     gen.seed(seed);
@@ -75,16 +128,30 @@ int main(int argc, char* argv[])
     pthread_t threads[5];
     pthread_attr_t  attr;
 
-    pthread_mutex_init(&die_mutex, 0);
-    pthread_cond_init(&winner_cond, 0);
+    pthread_mutex_init(&die_mutex, nullptr);
     pthread_attr_init(&attr);
 
-    for (int i = 0; i < 4; ++i) {
-        pthread_create(&threads[0], &attr, PlayerGo, (void*) i);
+    for (int i = 0; i < 5; ++i) {
+
+        //init player turn conditions
+        pthread_cond_t condition = GetCondition(i);
+        pthread_cond_init(&condition, nullptr);
+
+        //init player turn mutexes
+        pthread_mutex_t mutex = GetMutex(i);
+        pthread_mutex_init(&mutex, nullptr);
+
     }
 
+    //create dealer thread
+    pthread_create(&threads[4], &attr, DealerGo, (void*) 4);
+
     for (int i = 0; i < 4; ++i) {
-        pthread_join(threads[i], 0);
+        pthread_create(&threads[i], &attr, PlayerGo, (void*) i);
+    }
+
+    for (auto & thread : threads) {
+        pthread_join(thread, nullptr);
     }
 
 //    std::cout << "\nfinal id is: " << currentPlayer << "en";
