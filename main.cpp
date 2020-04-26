@@ -7,7 +7,7 @@
 #include <random>
 
 static int dieSums[] = {0, 0, 0, 0};
-static char playerNames[] = {'A', 'B', 'C', 'D'};
+static const char playerNames[] = {'A', 'B', 'C', 'D'};
 
 static pthread_mutex_t die_mutex;
 static std::default_random_engine gen;
@@ -70,57 +70,69 @@ void* PlayerGo(void* id){
     pthread_cond_t myCond = GetCondition(myIndex);
     pthread_mutex_t myMutex = GetMutex(myIndex);
 
-    do {
-
+    while (!finished){
         //wait for dealer
         pthread_cond_wait(&myCond, &myMutex);
 
+        //Get Partner index
+        int partnerIndex = (myIndex + 2) % 4;
+
         //Roll dice
         pthread_mutex_lock(&die_mutex);
+
+        if (finished)
+            return nullptr;
+
         int rand1 = GetRand(), rand2 = GetRand();
-        dieSums[myIndex] = rand1 + rand2;
+        int myRoll = rand1 + rand2;
+//        std::cout << "\n***updating " << playerNames[myIndex] << ": from " << dieSums[myIndex] << " to " << myRoll
+//        << " (compare to partner = " << dieSums[partnerIndex] << ")";
+
+        dieSums[myIndex] = myRoll;
+
         std::cout << "\nPLAYER " << playerNames[myIndex] << " gets " << rand1 << " and " << rand2 << " for a sum of " << dieSums[myIndex];
         pthread_mutex_unlock(&die_mutex);
 
-        //Check for finished
-        int partnerIndex = (myIndex + 2) % 4;
-        if (dieSums[myIndex] == dieSums[partnerIndex]){
+        if (myRoll == dieSums[partnerIndex]){
             finished = true;
         }
-
+        sleep(0.1f);
         //signal dealer that we're gucci
         pthread_cond_signal(&dealerTurn_cond);
 
-    } while (!finished);
+    }
 
 
 }
 
 void* DealerGo(void* id){
 
-    std::cout << "\nI'm the dealer! Look at me\n";
-
     //used to keep track of who won
     int winner = 0;
 
-    do {
+    srand(time(nullptr));
+
+    int startingIndex = (rand() % 4) - 1;
+//    std::cout << "\nStarting with player: " << playerNames[startingIndex] << "\n\n";
+
+    while (!finished) {
         //loop through players one by one and signal to roll dice
-        for (int i = 0; i < 4; ++i) {
-            //signal player
-            pthread_cond_t playerCond = GetCondition(i);
-            pthread_cond_signal(&playerCond);
-            //wait for response
-            pthread_cond_wait(&dealerTurn_cond, &dealerTurn_mutex);
-            //check for finished
+        for (int i = startingIndex; i < 4; ++i) {
             if (finished) {
                 winner = i;
-                break;
+            } else {
+                //signal player
+                pthread_cond_t playerCond = GetCondition(i);
+                pthread_cond_signal(&playerCond);
+                //wait for response
+                pthread_cond_wait(&dealerTurn_cond, &dealerTurn_mutex);
             }
         }
-    } while (!finished);
+    }
 
     int winnerPartner = (winner + 2) % 4;
 
+    sleep(1);
     std::cout << "\nDEALER: The winning team is " << playerNames[winner] << " and " << playerNames[winnerPartner] << "\n";
 
 }
@@ -131,8 +143,11 @@ int main(int argc, char* argv[])
     if (argc != 2) {fprintf(stderr, "WARNING: %s arguments were passed! \n", argv[0]); exit(-1);}
     int seed = atoi(argv[1]);
 
+    //init random vars for dice rolling
     gen.seed(seed);
     randDist = std::uniform_int_distribution(1, 6);
+
+    //int random seed for start index
 
     pthread_t threads[5];
     pthread_attr_t  attr;
